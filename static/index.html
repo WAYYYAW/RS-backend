@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <title>Pump Dynagraph Card</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+        body {
+            font-family: "Segoe UI", Roboto, sans-serif;
+            background: #f7f9fb;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #222;
+            font-size: 20px;
+        }
+        #container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        #chart-container {
+            width: 100%;
+            height: 500px;
+            position: relative;
+        }
+        canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+        #status {
+            text-align: right;
+            font-size: 14px;
+            color: #666;
+            margin-top: 8px;
+        }
+        #btns {
+            display: flex;
+            justify-content: flex-start;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        button {
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            background: #1976d2;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover { background: #1259a5; }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div id="container">
+    <h1>抽油机功图（Pump Dynagraph）</h1>
+    <div id="btns">
+        <button id="btnClear">清除数据</button>
+        <button id="btnReconnect">重连 WebSocket</button>
+    </div>
+    <div id="chart-container">
+        <canvas id="dynagraph"></canvas>
+    </div>
+    <div id="status">状态：<span id="stat">未连接</span></div>
+</div>
+
+<script>
+    (() => {
+        const X_MIN = 0, X_MAX = 10;
+        const Y_MIN = 20, Y_MAX = 120;
+        const MAX_POINTS = 400; // 限制点数避免卡顿
+
+        const ctx = document.getElementById('dynagraph').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: '实时功图',
+                    data: [],
+                    borderColor: 'rgba(0, 123, 255, 1)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0,  // 不平滑
+                    fill: false
+                }]
+            },
+            options: {
+                animation: false,
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        type: 'linear',
+                        min: X_MIN,
+                        max: X_MAX,
+                        title: { display: true, text: 'Position' },
+                        grid: { color: '#e0e0e0' }
+                    },
+                    y: {
+                        min: Y_MIN,
+                        max: Y_MAX,
+                        title: { display: true, text: 'Load' },
+                        grid: { color: '#e0e0e0' }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `Pos:${ctx.raw.x.toFixed(2)}, Load:${ctx.raw.y.toFixed(2)}`
+                        }
+                    }
+                }
+            }
+        });
+
+        const stat = document.getElementById('stat');
+        function setStatus(s, color="#333") {
+            stat.textContent = s;
+            stat.style.color = color;
+        }
+
+        // 历史淡化：旧点颜色逐渐透明
+        function fadeDataset(dataset) {
+            const len = dataset.data.length;
+            const baseColor = [0, 123, 255]; // 蓝色
+            for (let i = 0; i < len; i++) {
+                const alpha = Math.pow(i / len, 1.5); // 越旧越透明
+                dataset.borderColor = `rgba(${baseColor[0]},${baseColor[1]},${baseColor[2]},${0.3 + 0.7*alpha})`;
+            }
+        }
+
+        // 添加点
+        function addPoint(position, load) {
+            const ds = chart.data.datasets[0];
+            ds.data.push({x: position, y: load});
+            if (ds.data.length > MAX_POINTS) ds.data.shift();
+            fadeDataset(ds);
+            chart.update('none');
+        }
+
+        // WebSocket
+        let ws = null;
+        function connectWS() {
+            if (ws) ws.close();
+            const url = `ws://${location.hostname}:8080/ws`;
+            setStatus('连接中...', '#777');
+            ws = new WebSocket(url);
+
+            ws.onopen = () => setStatus('已连接', 'green');
+            ws.onclose = () => setStatus('已断开', 'red');
+            ws.onerror = () => setStatus('连接错误', 'orange');
+            ws.onmessage = evt => {
+                try {
+                    const data = JSON.parse(evt.data);
+                    const p = Number(data.position ?? data.Position);
+                    const l = Number(data.load ?? data.Load);
+                    if (!isNaN(p) && !isNaN(l)) addPoint(p, l);
+                } catch(e) { console.error(e); }
+            };
+        }
+
+        // 按钮事件
+        document.getElementById('btnClear').onclick = () => {
+            chart.data.datasets[0].data = [];
+            chart.update();
+        };
+        document.getElementById('btnReconnect').onclick = connectWS;
+
+        connectWS();
+
+        // 本地模拟测试：window.demo()
+        window.demo = function() {
+            let t=0;
+            setInterval(()=>{
+                const pos = 5 + 5*Math.sin(t);
+                const load = 70 + 30*Math.cos(t);
+                addPoint(pos, load);
+                t += 0.1;
+            },150);
+        };
+    })();
+</script>
+</body>
+</html>
