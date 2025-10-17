@@ -1,10 +1,7 @@
-name: Build & Release RS-backend
+name: Manual Build & Release RS-backend
 
 on:
-  push:
-    tags:
-      - 'v*'          # 打 tag 时触发，例如 v1.0.0
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:   # 手动触发
 
 jobs:
   build-and-release:
@@ -16,11 +13,11 @@ jobs:
       fail-fast: false
 
     steps:
-      # 1️⃣ 获取仓库代码
+      # 1️⃣ 检出代码
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2️⃣ 安装 Go
+      # 2️⃣ 设置 Go
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -37,14 +34,13 @@ jobs:
           echo "Building for ${{ matrix.goos }}/${{ matrix.goarch }}"
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o dist/RS-backend-${{ matrix.goos }}-${{ matrix.goarch }}$EXT main.go
 
-      # 4️⃣ 上传构建产物（可用于调试或下载）
+      # 4️⃣ 上传构建产物（Actions artifact，可选）
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: RS-backend-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/
 
-  # 5️⃣ Release job（等构建完成后运行）
   release:
     needs: build-and-release
     runs-on: ubuntu-latest
@@ -52,19 +48,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 6️⃣ 创建 GitHub Release
+      # 5️⃣ 创建 Release
       - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: "RS-backend ${{ github.ref_name }}"
+          tag_name: "manual-release-${{ github.run_number }}"   # 自动生成唯一 tag
+          release_name: "RS-backend manual release #${{ github.run_number }}"
           draft: false
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 7️⃣ 上传所有构建产物到 Release
+      # 6️⃣ 上传 Release 文件
       - name: Upload release assets
         uses: softprops/action-gh-release@v1
         with:
