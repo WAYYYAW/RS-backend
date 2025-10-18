@@ -1,13 +1,13 @@
 package routes
 
 import (
-	"RS-backend/internal/data"
 	"RS-backend/internal/handlers"
+	"RS-backend/internal/modbus"
 
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter() *gin.Engine {
+func SetupRouter(client *modbus.Client) *gin.Engine {
 	r := gin.Default()
 
 	//托管静态文件
@@ -19,15 +19,13 @@ func SetupRouter() *gin.Engine {
 	// REST API
 	api := r.Group("/api")
 	{
-		api.GET("/realtime", handlers.GetRealtime)
+		api.GET("/realtime", handlers.GetRealtime(client))
 	}
 
 	// WebSocket
-	//r.GET("/ws", handlers.WSHandler)
-	dataCh := make(chan data.Point, 100)
-	go data.SimulateData(dataCh, "data.csv")
 	r.GET("/ws", func(c *gin.Context) {
-		handlers.WSHandler(c, dataCh)
+		handlers.WSHandler(c, client)
 	})
+
 	return r
 }
