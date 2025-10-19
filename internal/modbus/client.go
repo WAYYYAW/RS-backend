@@ -18,9 +18,11 @@ type Data struct {
 }
 
 type Client struct {
-	client modbus.Client
-	mu     sync.Mutex
-	Data   Data
+	handler *modbus.TCPClientHandler
+	client  modbus.Client
+	mu      sync.Mutex
+	Data    Data
+	addr    string
 }
 
 func NewClient(addr string) *Client {
@@ -28,22 +30,45 @@ func NewClient(addr string) *Client {
 	handler.Timeout = 3 * time.Second
 	handler.SlaveId = 1
 
-	if err := handler.Connect(); err != nil {
-		log.Fatalf("无法连接PLC: %v", err)
-	}
-
 	return &Client{
-		client: modbus.NewClient(handler),
+		handler: handler,
+		client:  modbus.NewClient(handler),
+		addr:    addr,
 	}
 }
 
+func (c *Client) connect() error {
+	if err := c.handler.Connect(); err != nil {
+		log.Printf("无法连接PLC: %v", err)
+		return err
+	}
+	log.Println("成功连接到PLC")
+	return nil
+}
+
 func (c *Client) Poll(interval time.Duration) {
+	// 初始连接
+	if err := c.connect(); err != nil {
+		log.Printf("初始连接失败: %v", err)
+	}
+
 	go func() {
 		for {
 			// 从PLC读取2个寄存器 (Position和Load，每个值占用一个寄存器)
 			results, err := c.client.ReadHoldingRegisters(0, 2)
 			if err != nil {
 				log.Printf("Modbus读取失败: %v", err)
+				// 尝试重新连接
+				err := c.handler.Close()
+				if err != nil {
+					log.Printf("断开连接失败: %v", err)
+				}
+				time.Sleep(2 * time.Second)
+				if err := c.connect(); err != nil {
+					log.Printf("重新连接失败: %v", err)
+				} else {
+					log.Println("重新连接成功")
+				}
 				time.Sleep(interval)
 				continue
 			}
