@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"RS-backend/internal/database"
+
 	"github.com/goburrow/modbus"
 )
 
@@ -64,6 +66,14 @@ func (c *Client) Poll(interval time.Duration) {
 				Load:     load,
 			}
 			c.mu.Unlock()
+
+			// 将数据保存到数据库
+			point := database.Point{
+				Time:     time.Now(),
+				Position: position,
+				Load:     load,
+			}
+			database.SavePoint(point)
 
 			log.Printf("读取到数据: Position=%f, Load=%f", position, load)
 			time.Sleep(interval)
