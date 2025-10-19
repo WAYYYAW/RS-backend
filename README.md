@@ -42,6 +42,27 @@
   }
 }
 ```
+- `GET /api/history` - 获取历史数据（Position和Load）
+
+请求示例：
+```http
+GET /api/history?timestamp=1760871111
+```
+
+返回示例：
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "data":{
+    "id":1212,
+    "load":2587,
+    "position":595,
+    "time":"2025-10-19 18:51:51",
+    "timestamp":1760871111
+  }
+}
+```
 
 ### WebSocket
 
