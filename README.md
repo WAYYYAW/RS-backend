@@ -89,7 +89,7 @@ go build -o rs-backend main.go
 - [ ] 添加配置文件读取
 - [ ] 添加日志记录
 - [ ] 将数据存储到数据库
-- [ ] 添加数据可视化
+- [x] 添加数据可视化
 ## 测试模式
 
 如果需要使用模拟数据进行测试，可以使用[fake-modbus-server](https://github.com/WAYYYAW/fake-modbus-server)项目启动一个模拟的Modbus服务器。
