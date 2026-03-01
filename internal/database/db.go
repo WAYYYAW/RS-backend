@@ -13,10 +13,19 @@ var DB *gorm.DB
 
 // 数据结构（表）
 type Point struct {
-	ID       uint `gorm:"primaryKey"`
-	Time     time.Time
-	Position float64
-	Load     float64
+	ID                 uint `gorm:"primaryKey"`
+	Time               time.Time
+	Position           float64
+	Load               float64
+	Inclination        float64 // 安装倾角
+	MotorSpeed         float64 // 电机转速
+	OilDensity         float64 // 原油密度
+	PumpInsertionDepth float64 // 泵下入深度
+	RodDensity         float64 // 抽油杆密度
+	StrokesNumber      float64 // 冲程数
+	Distance           float64 // 冲程长度
+	TransmissionRatio  float64 // 传动比
+	Area               float64 // 截面积
 }
 
 // 初始化数据库

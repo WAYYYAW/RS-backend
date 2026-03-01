@@ -21,6 +21,8 @@ func SetupRouter(client *modbus.Client) *gin.Engine {
 	{
 		api.GET("/realtime", handlers.GetRealtime(client))
 		api.GET("/history", handlers.GetHistory)
+
+		api.POST("/user", handlers.ConnectDevice(client))
 	}
 
 	// WebSocket

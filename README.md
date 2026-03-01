@@ -27,19 +27,29 @@
 
 ### REST API
 
-- `GET /api/realtime` - 获取当前实时数据（Position和Load）
+- `GET /api/realtime` - 获取当前实时数据（完整设备参数）
 
 返回示例：
 ```json
 {
   "code": 0,
-  "msg": "success",
   "data": {
-    "timestamp": 1760784877,
-    "realtime": "2025-10-18 18:54:37",
-    "position": 1256.0,
-    "load": 2406.0
-  }
+    "area": 500.0,
+    "distance": 3000.0,
+    "inclination": 3000.0,
+    "load": 445.0,
+    "motorSpeed": 1500.0,
+    "oilDensity": 850.0,
+    "position": 981.0,
+    "pumpInsertionDepth": 1200.0,
+    "realtime": "2026-03-01 17:12:34",
+    "rodDensity": 7850.0,
+    "strokesNumber": 5.0,
+    "time": "2026-03-01 17:12:33",
+    "timestamp": 1772356354,
+    "transmissionRatio": 2000.0
+  },
+  "msg": "success"
 }
 ```
 - `GET /api/history` - 获取历史数据（Position和Load）
@@ -53,14 +63,23 @@ GET /api/history?timestamp=1760871111
 ```json
 {
   "code": 0,
-  "msg": "success",
-  "data":{
-    "id":1212,
-    "load":2587,
-    "position":595,
-    "time":"2025-10-19 18:51:51",
-    "timestamp":1760871111
-  }
+  "data": {
+    "area": 0,
+    "distance": 0,
+    "id": 3960,
+    "inclination": 0,
+    "load": 812,
+    "motorSpeed": 0,
+    "oilDensity": 0,
+    "position": 1129,
+    "pumpInsertionDepth": 0,
+    "rodDensity": 0,
+    "strokesNumber": 0,
+    "time": "2026-03-01 17:22:25",
+    "timestamp": 1772356945,
+    "transmissionRatio": 0
+  },
+  "msg": "success"
 }
 ```
 
@@ -71,9 +90,18 @@ GET /api/history?timestamp=1760871111
 推送数据格式：
 ```json
 {
-  "time": "2025-10-18 18:54:37",
-  "position": 1256.0,
-  "load": 2406.0
+  "Time": "2026-03-01 17:12:33",
+  "Position": 981.0,
+  "Load": 445.0,
+  "MotorSpeed": 1500.0,
+  "StrokesNumber": 5.0,
+  "Distance": 3000.0,
+  "RodDensity": 7850.0,
+  "TransmissionRatio": 2000.0,
+  "Area": 500.0,
+  "Inclination": 3000.0,
+  "PumpInsertionDepth": 1200.0,
+  "OilDensity": 850.0
 }
 ```
 
@@ -111,14 +139,17 @@ go build -o rs-backend main.go
 - [ ] 添加日志记录
 - [x] 将数据存储到数据库
 - [x] 添加数据可视化
+- [x] 修复大小写命名规范问题
 ## 测试模式
 
 如果需要使用模拟数据进行测试，可以使用[fake-modbus-server](https://github.com/WAYYYAW/fake-modbus-server)项目启动一个模拟的Modbus服务器。
 
 ## 前端页面
 
-- test.html - 简化的实时数据显示页面，仅显示核心数据，无复杂图表
-- index.html - 主页面
+- test.html - 简化的实时数据显示页面，显示所有设备参数
+- index.html - 主页面（基础版本）
+- home2.html - 完整功能的主页面，包含设备配置和历史数据查询
+- home.html - 备用主页
 
 ## 日志
 
