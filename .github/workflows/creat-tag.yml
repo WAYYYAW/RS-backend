@@ -1,0 +1,27 @@
+name: Create Version Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. 1.2.0)"
+        required: true
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions@users.noreply.github.com"
+
+      - name: Create and Push Tag
+        run: |
+          VERSION=v${{ github.event.inputs.version }}
+          git tag $VERSION
+          git push origin $VERSION
