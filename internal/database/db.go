@@ -1,11 +1,13 @@
 package database
 
 import (
+	"database/sql"
 	"log"
 	"time"
 
-	"gorm.io/driver/sqlite"
+	sqlite "gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	_ "modernc.org/sqlite"
 )
 
 // 全局变量
@@ -31,9 +33,15 @@ type Point struct {
 // 初始化数据库
 func InitDB() {
 	var err error
-	DB, err = gorm.Open(sqlite.Open("data.db"), &gorm.Config{})
+	// 使用 modernc.org/sqlite (纯Go实现,无需cgo)
+	sqlDB, err := sql.Open("sqlite", "data.db?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		log.Fatalf("❌ 数据库连接失败: %v", err)
+	}
+
+	DB, err = gorm.Open(sqlite.Dialector{Conn: sqlDB}, &gorm.Config{})
+	if err != nil {
+		log.Fatalf("❌ 数据库初始化失败: %v", err)
 	}
 
 	// 自动迁移
