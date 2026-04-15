@@ -25,13 +25,29 @@ jobs:
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
           echo "Generated tag: $TAG"
 
+      - name: Install Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.13.0
+
       - name: Build binaries
         run: |
           mkdir -p dist
-          echo "🔨 Building for Linux amd64..."
-          GOOS=linux GOARCH=amd64 go build -o dist/RS-backend-linux-amd64 ./main.go
-          echo "🔨 Building for Windows amd64..."
-          GOOS=windows GOARCH=amd64 go build -o dist/RS-backend-windows-amd64.exe ./main.go
+          echo "🔨 Building for Linux amd64 (static)..."
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            CC="zig cc -target x86_64-linux-gnu" \
+            CXX="zig c++ -target x86_64-linux-gnu" \
+            go build -ldflags="-s -w -extldflags=-static" -o dist/RS-backend-linux-amd64 ./main.go
+          echo "🔨 Building for Windows amd64 (static)..."
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
+            CC="zig cc -target x86_64-windows-gnu" \
+            CXX="zig c++ -target x86_64-windows-gnu" \
+            go build -ldflags="-s -w -extldflags=-static" -o dist/RS-backend-windows-amd64.exe ./main.go
+          echo "🔨 Building for Linux arm64 (static)..."
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+            CC="zig cc -target aarch64-linux-gnu" \
+            CXX="zig c++ -target aarch64-linux-gnu" \
+            go build -ldflags="-s -w -extldflags=-static" -o dist/RS-backend-linux-arm64 ./main.go
 
       - name: Create Git tag
         run: |
