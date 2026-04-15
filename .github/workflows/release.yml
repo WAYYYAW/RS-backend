@@ -25,10 +25,37 @@ jobs:
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
           echo "Generated tag: $TAG"
 
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
+          echo "Previous tag: $PREV_TAG"
+
       - name: Install Zig
         uses: goto-bus-stop/setup-zig@v2
         with:
           version: 0.13.0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if [ -z "${{ steps.prev_tag.outputs.PREV_TAG }}" ]; then
+            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+            echo "🎉 Initial release" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "**All commits:**" >> $GITHUB_OUTPUT
+            git log --pretty=format:"- %s (%h)" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+            echo "**Changes since ${{ steps.prev_tag.outputs.PREV_TAG }}:**" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            git log ${{ steps.prev_tag.outputs.PREV_TAG }}..HEAD --pretty=format:"- %s (%h)" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build binaries
         run: |
@@ -49,7 +76,7 @@ jobs:
             CXX="zig c++ -target aarch64-linux-gnu" \
             go build -ldflags="-s -w -extldflags=-static" -o dist/RS-backend-linux-arm64 ./main.go
 
-      - name: Create Git tag
+      - name: Create Git tag and push
         run: |
           git tag ${{ steps.tag.outputs.TAG }}
           git push origin ${{ steps.tag.outputs.TAG }}
@@ -65,6 +92,11 @@ jobs:
             Includes binaries for:
             - Linux amd64
             - Windows amd64
+            - Linux arm64 (static)
+
+            ---
+
+            ${{ steps.changelog.outputs.CHANGELOG }}
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
