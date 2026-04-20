@@ -4,8 +4,9 @@ go 1.25.0
 
 require (
 	github.com/gin-gonic/gin v1.11.0
-	github.com/goburrow/modbus v0.1.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/simonvetter/modbus v1.6.4
+	github.com/yalue/onnxruntime_go v1.27.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.0
 	modernc.org/sqlite v1.48.2

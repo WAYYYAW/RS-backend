@@ -1,26 +1,25 @@
 package modbus
 
 import (
-	"encoding/binary"
 	"log"
 	"sync"
 	"time"
 
 	"RS-backend/internal/database"
 
-	"github.com/goburrow/modbus"
+	"github.com/simonvetter/modbus"
 )
 
 // motorSpeed: any,             // 电机转速
 //
 //	strokesNumber: any,          // 冲程数
-//		distance: any,               // 冲程长度
-//		rodDensity: any,             // 抽油杆密度
-//		transmissionRatio: any,      // 传动比
-//		area: any,                   // 截面积
-//		inclination: any,            // 安装倾角
-//		pumpInsertionDepth: any,     // 泵下入深度
-//		oilDensity: any              // 原油密度
+//	distance: any,               // 冲程长度
+//	rodDensity: any,             // 抽油杆密度
+//	transmissionRatio: any,      // 传动比
+//	area: any,                   // 截面积
+//	inclination: any,            // 安装倾角
+//	pumpInsertionDepth: any,     // 泵下入深度
+//	oilDensity: any              // 原油密度
 type Data struct {
 	Time               string  `json:"Time"`
 	Position           float64 `json:"Position"`
@@ -37,27 +36,36 @@ type Data struct {
 }
 
 type Client struct {
-	handler *modbus.TCPClientHandler
-	client  modbus.Client
-	mu      sync.Mutex
-	Data    Data
-	addr    string
+	client *modbus.ModbusClient // 替换为 simonvetter 的客户端指针
+	mu     sync.Mutex
+	Data   Data
+	addr   string
 }
 
 func NewClient(addr string) *Client {
-	handler := modbus.NewTCPClientHandler(addr)
-	handler.Timeout = 3 * time.Second
-	handler.SlaveId = 1
+	// simonvetter 库的 URL 需要明确协议头 tcp://
+	url := "tcp://" + addr
+	client, err := modbus.NewClient(&modbus.ClientConfiguration{
+		URL:     url,
+		Timeout: 3 * time.Second,
+	})
+	if err != nil {
+		// 只有 URL 格式严重错误时才会在此报错
+		log.Fatalf("初始化 Modbus 客户端失败: %v", err)
+	}
+
+	// 等同于旧版 handler.SlaveId = 1
+	client.SetUnitId(1)
 
 	return &Client{
-		handler: handler,
-		client:  modbus.NewClient(handler),
-		addr:    addr,
+		client: client,
+		addr:   addr,
 	}
 }
 
 func (c *Client) connect() error {
-	if err := c.handler.Connect(); err != nil {
+	// Open() 替代了 Connect()
+	if err := c.client.Open(); err != nil {
 		log.Printf("无法连接PLC: %v", err)
 		return err
 	}
@@ -73,13 +81,13 @@ func (c *Client) Poll(interval time.Duration) {
 
 	go func() {
 		for {
-			// 从PLC读取11个寄存器
-			results, err := c.client.ReadHoldingRegisters(0, 11)
+			// 重点优化：ReadRegisters 直接返回 []uint16，省去了手动处理 binary.BigEndian 的痛苦
+			regs, err := c.client.ReadRegisters(0, 11, modbus.HOLDING_REGISTER)
 			if err != nil {
 				log.Printf("Modbus读取失败: %v", err)
+
 				// 尝试重新连接
-				err := c.handler.Close()
-				if err != nil {
+				if err := c.client.Close(); err != nil {
 					log.Printf("断开连接失败: %v", err)
 				}
 				time.Sleep(2 * time.Second)
@@ -92,25 +100,26 @@ func (c *Client) Poll(interval time.Duration) {
 				continue
 			}
 
-			// 检查结果长度
-			if len(results) < 4 {
-				log.Printf("Modbus返回数据不足: %v", results)
+			// 检查结果长度 (因为一次读了 11 个寄存器，所以长度应该就是 11)
+			if len(regs) < 11 {
+				log.Printf("Modbus返回数据不足，期望11个寄存器，实际: %d", len(regs))
 				time.Sleep(interval)
 				continue
 			}
 
-			// 从寄存器读取uint16值并转换为float64
-			position := float64(binary.BigEndian.Uint16(results[0:2]))
-			load := float64(binary.BigEndian.Uint16(results[2:4]))
-			motorSpeed := float64(binary.BigEndian.Uint16(results[4:6]))
-			strokesNumber := float64(binary.BigEndian.Uint16(results[6:8]))
-			distance := float64(binary.BigEndian.Uint16(results[8:10]))
-			rodDensity := float64(binary.BigEndian.Uint16(results[10:12]))
-			transmissionRatio := float64(binary.BigEndian.Uint16(results[12:14]))
-			area := float64(binary.BigEndian.Uint16(results[14:16]))
-			inclination := float64(binary.BigEndian.Uint16(results[16:18]))
-			pumpInsertionDepth := float64(binary.BigEndian.Uint16(results[18:20]))
-			oilDensity := float64(binary.BigEndian.Uint16(results[20:22]))
+			// 直接从 uint16 转换为 float64,雅
+			position := float64(regs[0])
+			load := float64(regs[1])
+			motorSpeed := float64(regs[2])
+			strokesNumber := float64(regs[3])
+			distance := float64(regs[4])
+			rodDensity := float64(regs[5])
+			transmissionRatio := float64(regs[6])
+			area := float64(regs[7])
+			inclination := float64(regs[8])
+			pumpInsertionDepth := float64(regs[9])
+			oilDensity := float64(regs[10])
+
 			c.mu.Lock()
 			c.Data = Data{
 				Time:               time.Now().Format("2006-01-02 15:04:05"),
@@ -137,7 +146,8 @@ func (c *Client) Poll(interval time.Duration) {
 			}
 			database.SavePoint(point)
 
-			log.Printf("读取到数据: Position=%f, Load=%f,MotorSpeed=%f,StrokesNumber=%f,Distance=%f", position, load, motorSpeed, strokesNumber, distance)
+			log.Printf("读取到数据: Position=%f, Load=%f,MotorSpeed=%f,StrokesNumber=%f,Distance=%f",
+				position, load, motorSpeed, strokesNumber, distance)
 			time.Sleep(interval)
 		}
 	}()
