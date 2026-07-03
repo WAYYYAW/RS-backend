@@ -1,0 +1,16 @@
+.idea/
+.tmp/
+.workspace/
+.参考文档/
+.抽油机控制器项目.zip
+
+
+data.db
+data.db-shm
+data.db-wal
+
+RS-backend
+rs-backend
+rs-backend-amd
+rs-backend-arm
+go_build_RS_backend

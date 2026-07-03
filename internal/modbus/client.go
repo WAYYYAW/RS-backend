@@ -38,8 +38,11 @@ type Data struct {
 type Client struct {
 	client *modbus.ModbusClient // 替换为 simonvetter 的客户端指针
 	mu     sync.Mutex
+	connMu sync.Mutex
 	Data   Data
 	addr   string
+
+	connected bool
 }
 
 func NewClient(addr string) *Client {
@@ -64,39 +67,56 @@ func NewClient(addr string) *Client {
 }
 
 func (c *Client) connect() error {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+
+	if c.connected {
+		return nil
+	}
+
 	// Open() 替代了 Connect()
 	if err := c.client.Open(); err != nil {
 		log.Printf("无法连接PLC: %v", err)
 		return err
 	}
+
+	c.connected = true
 	log.Println("成功连接到PLC")
 	return nil
 }
 
-func (c *Client) Poll(interval time.Duration) {
-	// 初始连接
-	if err := c.connect(); err != nil {
-		log.Printf("初始连接失败: %v", err)
+func (c *Client) disconnect() {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+
+	if !c.connected {
+		return
 	}
 
+	if err := c.client.Close(); err != nil {
+		log.Printf("断开连接失败: %v", err)
+	}
+
+	c.connected = false
+}
+
+func (c *Client) Poll(interval time.Duration) {
 	go func() {
 		for {
+			if err := c.connect(); err != nil {
+				log.Printf("连接PLC失败，稍后重试: %v", err)
+				time.Sleep(2 * time.Second)
+				continue
+			}
+
 			// 重点优化：ReadRegisters 直接返回 []uint16，省去了手动处理 binary.BigEndian 的痛苦
 			regs, err := c.client.ReadRegisters(0, 11, modbus.HOLDING_REGISTER)
 			if err != nil {
 				log.Printf("Modbus读取失败: %v", err)
 
-				// 尝试重新连接
-				if err := c.client.Close(); err != nil {
-					log.Printf("断开连接失败: %v", err)
-				}
+				// 读失败后主动断开，下个循环重新建立连接。
+				c.disconnect()
 				time.Sleep(2 * time.Second)
-				if err := c.connect(); err != nil {
-					log.Printf("重新连接失败: %v", err)
-				} else {
-					log.Println("重新连接成功")
-				}
-				time.Sleep(interval)
 				continue
 			}
 

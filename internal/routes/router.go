@@ -3,12 +3,14 @@ package routes
 import (
 	"RS-backend/internal/handlers"
 	"RS-backend/internal/modbus"
+	"RS-backend/internal/services"
 
 	"github.com/gin-gonic/gin"
 )
 
 func SetupRouter(client *modbus.Client) *gin.Engine {
 	r := gin.Default()
+	userHandler := handlers.NewUserHandler(services.NewDeviceService(client))
 
 	//托管静态文件
 	r.Static("/static", "./static")
@@ -22,7 +24,7 @@ func SetupRouter(client *modbus.Client) *gin.Engine {
 		api.GET("/realtime", handlers.GetRealtime(client))
 		api.GET("/history", handlers.GetHistory)
 
-		api.POST("/user", handlers.ConnectDevice(client))
+		api.POST("/user", userHandler.ConnectDevice())
 	}
 
 	// WebSocket

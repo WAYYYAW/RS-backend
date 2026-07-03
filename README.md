@@ -1,161 +1,266 @@
-# RS-backend 抽油机监控系统后端
+# RS-backend
 
-这是一个用于监控抽油机运行状态的后端系统，通过Modbus协议读取设备数据并通过WebSocket实时推送。
+基于 Go + Gin 的抽油机监控后端。系统通过 Modbus TCP 轮询 PLC 数据，提供 REST API、WebSocket 和静态页面服务。
 
-## 功能特性
+## 当前已实现能力
 
-- 通过Modbus TCP协议连接PLC设备
-- 实时读取抽油机的Position（位置）和Load（载荷）数据
-- 提供REST API接口获取实时数据
-- 通过WebSocket推送实时数据到前端
-- 静态文件服务，可托管前端页面
+- Modbus TCP 客户端连接 PLC
+- 以固定间隔轮询 11 个保持寄存器
+- 内存中维护最近一次实时数据
+- 将 `Position`、`Load` 写入 SQLite
+- 提供实时数据 REST API
+- 提供历史单点查询 REST API
+- 提供实时数据 WebSocket 推送
+- 托管 `static/` 下前端页面
 
 ## 项目结构
 
-```
+```text
 .
 ├── internal/
-│   ├── modbus/          # Modbus客户端实现
-│   ├── handlers/        # HTTP请求处理器
-│   └── routes/          # 路由配置
-├── static/              # 静态文件（前端页面）
-├── main.go             # 程序入口
-└── README.md           # 项目说明文档
+│   ├── database/      # SQLite 初始化与历史数据存储
+│   ├── handlers/      # HTTP / WebSocket 入口
+│   ├── modbus/        # Modbus 客户端与轮询逻辑
+│   ├── models/        # 请求 / 响应模型
+│   ├── routes/        # 路由注册
+│   └── services/      # 业务层
+├── static/            # 前端静态资源
+├── main.go            # 程序入口
+└── README.md
 ```
 
-## API接口
+## 已实现 API
 
-### REST API
+服务默认监听 `http://localhost:8080`。
 
-- `GET /api/realtime` - 获取当前实时数据（完整设备参数）
+### 1. `GET /api/realtime`
 
-返回示例：
+返回最近一次 Modbus 轮询得到的实时数据。
+
+示例响应：
+
 ```json
 {
   "code": 0,
+  "msg": "success",
   "data": {
-    "area": 500.0,
-    "distance": 3000.0,
-    "inclination": 3000.0,
-    "load": 445.0,
-    "motorSpeed": 1500.0,
-    "oilDensity": 850.0,
-    "position": 981.0,
-    "pumpInsertionDepth": 1200.0,
-    "realtime": "2026-03-01 17:12:34",
-    "rodDensity": 7850.0,
-    "strokesNumber": 5.0,
-    "time": "2026-03-01 17:12:33",
     "timestamp": 1772356354,
-    "transmissionRatio": 2000.0
-  },
-  "msg": "success"
+    "realtime": "2026-03-01 17:12:34",
+    "position": 981,
+    "load": 445,
+    "motorSpeed": 1500,
+    "strokesNumber": 5,
+    "distance": 3000,
+    "time": "2026-03-01 17:12:33",
+    "rodDensity": 7850,
+    "transmissionRatio": 2000,
+    "area": 500,
+    "inclination": 30,
+    "pumpInsertionDepth": 1200,
+    "oilDensity": 850
+  }
 }
 ```
-- `GET /api/history` - 获取历史数据（Position和Load）
+
+说明：
+- `timestamp` 和 `realtime` 是接口返回时的当前时间。
+- `time` 是最近一次轮询数据写入内存时的时间。
+
+### 2. `GET /api/history?timestamp=<unix>`
+
+按 Unix 秒级时间戳查询历史点位，查询范围是该秒内的第一条记录。
 
 请求示例：
+
 ```http
 GET /api/history?timestamp=1760871111
 ```
 
-返回示例：
+成功响应：
+
 ```json
 {
   "code": 0,
+  "msg": "success",
   "data": {
-    "area": 0,
-    "distance": 0,
     "id": 3960,
-    "inclination": 0,
+    "timestamp": 1772356945,
+    "time": "2026-03-01 17:22:25",
+    "position": 1129,
     "load": 812,
+    "inclination": 0,
     "motorSpeed": 0,
     "oilDensity": 0,
-    "position": 1129,
     "pumpInsertionDepth": 0,
     "rodDensity": 0,
     "strokesNumber": 0,
-    "time": "2026-03-01 17:22:25",
-    "timestamp": 1772356945,
-    "transmissionRatio": 0
-  },
-  "msg": "success"
+    "transmissionRatio": 0,
+    "area": 0,
+    "distance": 0
+  }
 }
 ```
 
-### WebSocket
+错误响应：
 
-- `GET /ws` - WebSocket连接端点，实时推送Position和Load数据
+```json
+{
+  "code": 1,
+  "msg": "缺少时间戳参数"
+}
+```
 
-推送数据格式：
+```json
+{
+  "code": 1,
+  "msg": "时间戳格式错误，应为Unix时间戳格式（例如：1760869745）"
+}
+```
+
+```json
+{
+  "code": 1,
+  "msg": "未找到指定时间的数据"
+}
+```
+
+说明：
+- 当前数据库只落库了 `Position` 和 `Load`。
+- 其余字段会出现在响应结构里，但默认是 `0`。
+
+### 3. `POST /api/user`
+
+当前实现为“设备连接信息提交接口”，会校验 JSON 格式并返回一组 mock 设备参数。
+
+请求体：
+
+```json
+{
+  "id": "device-001",
+  "ip": "127.0.0.1",
+  "port": "5020"
+}
+```
+
+成功响应：
+
+```json
+{
+  "status": 200,
+  "data": {
+    "motorSpeed": "1200",
+    "strokesNumber": "5",
+    "distance": "3.5",
+    "rodDensity": "7850",
+    "transmissionRatio": "50",
+    "area": "0.001",
+    "inclination": "30",
+    "pumpInsertionDepth": "1000",
+    "oilDensity": "850"
+  }
+}
+```
+
+失败响应：
+
+```json
+{
+  "status": 400,
+  "error": "Invalid connection info"
+}
+```
+
+说明：
+- 该接口目前没有真正修改 Modbus 连接地址。
+- 返回参数来自业务层中的 mock 数据，不会影响 `internal/modbus/client.go` 当前运行中的客户端。
+
+### 4. `GET /ws`
+
+WebSocket 实时推送最近一次轮询数据，推送周期为 `500ms`。
+
+连接地址：
+
+```text
+ws://localhost:8080/ws
+```
+
+消息示例：
+
 ```json
 {
   "Time": "2026-03-01 17:12:33",
-  "Position": 981.0,
-  "Load": 445.0,
-  "MotorSpeed": 1500.0,
-  "StrokesNumber": 5.0,
-  "Distance": 3000.0,
-  "RodDensity": 7850.0,
-  "TransmissionRatio": 2000.0,
-  "Area": 500.0,
-  "Inclination": 3000.0,
-  "PumpInsertionDepth": 1200.0,
-  "OilDensity": 850.0
+  "Position": 981,
+  "Load": 445,
+  "MotorSpeed": 1500,
+  "StrokesNumber": 5,
+  "Distance": 3000,
+  "RodDensity": 7850,
+  "TransmissionRatio": 2000,
+  "Area": 500,
+  "Inclination": 30,
+  "PumpInsertionDepth": 1200,
+  "OilDensity": 850
 }
 ```
 
-## 静态页面
+## 静态页面入口
 
-- `GET /` - 主页面（重定向到index.html）__（尚未完成）__
-- `GET /static/test.html` - 测试页面，显示实时数据
+- `GET /`：返回 `static/index.html`
+- `GET /static/*filepath`：托管 `static/` 目录下全部静态资源
 
-## 环境要求
+## Modbus 采集说明
+
+当前 [client.go](/home/way/GolandProjects/RS-backend/internal/modbus/client.go) 的实现行为：
+
+- 默认连接地址：`127.0.0.1:5020`
+- 连接协议：`tcp://`
+- `Unit ID` 固定为 `1`
+- 轮询周期：`500ms`
+- 读取寄存器范围：从地址 `0` 开始连续读取 `11` 个保持寄存器
+
+寄存器映射：
+
+1. `0` -> `Position`
+2. `1` -> `Load`
+3. `2` -> `MotorSpeed`
+4. `3` -> `StrokesNumber`
+5. `4` -> `Distance`
+6. `5` -> `RodDensity`
+7. `6` -> `TransmissionRatio`
+8. `7` -> `Area`
+9. `8` -> `Inclination`
+10. `9` -> `PumpInsertionDepth`
+11. `10` -> `OilDensity`
+
+异常处理：
+
+- 启动时首次连接失败不会退出，会记录日志并继续重试
+- 轮询失败时会关闭当前连接，等待 `2s` 后重连
+- 成功重连后继续轮询
+
+## 运行方式
+
+环境要求：
 
 - Go 1.16+
-- PLC设备或Modbus模拟器
+- 可访问的 Modbus TCP 设备或模拟器
 
-## 配置
-
-默认连接地址：`127.0.0.1:5020`
-
-如需修改连接地址，请在 [main.go](file:///home/way/GolandProjects/RS-backend/main.go) 中修改：
-
-
-```
-client := modbus.NewClient("your-plc-address:port")
-```
-## 构建和运行
+启动：
 
 ```bash
-# 构建
 go build -o rs-backend main.go
-
-# 运行
 ./rs-backend
 ```
-## TODO
-- [ ] 添加配置文件读取
-- [ ] 添加日志记录
-- [x] 将数据存储到数据库
-- [x] 添加数据可视化
-- [x] 修复大小写命名规范问题
-## 测试模式
 
-如果需要使用模拟数据进行测试，可以使用[fake-modbus-server](https://github.com/WAYYYAW/fake-modbus-server)项目启动一个模拟的Modbus服务器。
+## 当前限制
 
-## 前端页面
+- `POST /api/user` 还是 mock，没有驱动真实设备连接
+- 历史数据只保存了 `Position` 和 `Load`
+- Modbus 地址写死在 [main.go](/home/way/GolandProjects/RS-backend/main.go)
+- 缺少配置文件、鉴权、结构化日志和测试
 
-- test.html - 简化的实时数据显示页面，显示所有设备参数
-- index.html - 主页面（基础版本）
-- home2.html - 完整功能的主页面，包含设备配置和历史数据查询
-- home.html - 备用主页
+## 测试建议
 
-## 日志
+如需本地联调，可使用 fake Modbus 服务，例如：
 
-程序运行时会输出读取到的数据日志：
-```
-读取到数据: Position=1256.000000, Load=2406.000000
-```
-
-如果无法连接到PLC设备，程序会直接终止并输出错误日志。
+- [fake-modbus-server](https://github.com/WAYYYAW/fake-modbus-server)
