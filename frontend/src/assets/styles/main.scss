@@ -1,0 +1,118 @@
+:root {
+  color: #d9e2dc;
+  background: #18211d;
+  font-family:
+    "Noto Sans SC",
+    "Microsoft YaHei",
+    "PingFang SC",
+    system-ui,
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --bg: #18211d;
+  --panel: #223029;
+  --panel-strong: #2d3c33;
+  --line: #415247;
+  --line-soft: rgba(217, 226, 220, 0.14);
+  --text: #e7eee9;
+  --muted: #9eada4;
+  --green: #4bd47b;
+  --amber: #e6bd55;
+  --red: #e3655b;
+  --cyan: #54c7d6;
+  --blue: #77a8ff;
+  --black: #0f1512;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    radial-gradient(circle at 18% 0%, rgba(84, 199, 214, 0.18), transparent 34%),
+    var(--bg);
+  background-size:
+    32px 32px,
+    32px 32px,
+    auto,
+    auto;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+.icon-button {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.field {
+  display: grid;
+  gap: 5px;
+}
+
+.field label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.field input {
+  width: 100%;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text);
+  background: rgba(15, 21, 18, 0.7);
+  padding: 0 9px;
+}
+
+.primary-button,
+.ghost-button {
+  height: 36px;
+  border-radius: 6px;
+  padding: 0 13px;
+  cursor: pointer;
+}
+
+.primary-button {
+  border: 1px solid rgba(75, 212, 123, 0.6);
+  background: rgba(75, 212, 123, 0.18);
+}
+
+.ghost-button {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.screen-page {
+  min-height: 0;
+}

@@ -14,6 +14,7 @@ func SetupRouter(client *modbus.Client) *gin.Engine {
 
 	//托管静态文件
 	r.Static("/static", "./static")
+	r.Static("/app", "./static/app")
 	//路由重定向，访问根目录时跳转到index.html
 	r.GET("/", func(c *gin.Context) {
 		c.File("./static/index.html")
@@ -23,6 +24,7 @@ func SetupRouter(client *modbus.Client) *gin.Engine {
 	{
 		api.GET("/realtime", handlers.GetRealtime(client))
 		api.GET("/history", handlers.GetHistory)
+		api.GET("/history/range", handlers.GetHistoryRange)
 
 		api.POST("/user", userHandler.ConnectDevice())
 	}
